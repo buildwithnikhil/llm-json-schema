@@ -216,3 +216,8 @@ test("input is not mutated", () => {
   convert(s, { target: "openai" });
   assert.deepEqual(s, corpus["composio#4750 vendor keywords"]);
 });
+
+test("inlined $refs are listed in losses as rewritten", () => {
+  const r = convert({ type: "object", $defs: { U: { type: "string" } }, properties: { a: { $ref: "#/$defs/U" } }, required: ["a"] }, { target: "openai" });
+  assert.deepEqual(r.losses, [{ path: "#/properties/a", keyword: "$ref", value: "#/$defs/U", action: "rewritten", note: '$ref "#/$defs/U" replaced by the schema it points to' }]);
+});

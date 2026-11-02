@@ -34,7 +34,10 @@ r.losses;
 
 To use the schema as the model's final output instead, pass `use: "output"`. `r.field` then names the right place, for example `response_format.json_schema.schema` for OpenAI or `output_config.format.schema` for Anthropic.
 
-Provider strict mode is the default. For tools sent with `strict: false`, pass `strict: false` here too. The schema is then sent exactly as written, except where the provider rejects it outright: tool parameters must be an object at the root, so a root `anyOf` is wrapped and a root `allOf` is merged.
+Provider strict mode is the default. For OpenAI or Anthropic tools sent with `strict: false`, pass `strict: false` here too. The schema is then sent as written, except where the provider rejects it outright: tool parameters must be an object at the root.
+- A root `anyOf`/`oneOf` whose variants are all objects is merged into one object, so the model's arguments keep their shape and need no decoding. That suits proxies that stream tool arguments.
+- A root `allOf` of objects is merged.
+- Any other root is wrapped as `{"value": …}`, and `decode()` unwraps it.
 
 ### From Zod, or any Standard JSON Schema library
 
@@ -49,7 +52,7 @@ const data = zodSchema.parse(r.decode(output)); // optional fields come back abs
 
 ## What it changes
 
-`losses` lists every change. Each one has one of these `action` values:
+`losses` lists every change. The only exception is spelling-only rewrites from draft-07 to 2020-12 (`definitions` → `$defs`, array `items` → `prefixItems`), which are listed only for targets that send the schema as written. Each entry has one of these `action` values:
 
 | Action | Meaning | Example (OpenAI) |
 |---|---|---|
@@ -68,16 +71,16 @@ If no faithful version of the schema exists for the target, `convert()` throws `
 | `"openai"`, `"openai/<model>"` | OpenAI's strict subset: every property required, `additionalProperties: false`, an object at the root, `$defs`/`$ref` and recursion allowed, no `allOf`/`not`/conditionals, at most 10 levels deep, 5,000 properties and 1,000 enum values. |
 | `"openai/ft:<model>"` | The same, without `pattern`, `format`, number bounds or `minItems`/`maxItems`, which fine-tuned models don't support. |
 | `"anthropic"`, `"anthropic/<model>"` | Anthropic's strict tool and JSON-output subset: closed objects, but optional fields are allowed. `const`, `default` and `uri` are kept. No recursion, number or length bounds, `minItems` above 1, or lookaround/backreference patterns. At most 24 optional and 16 union-typed properties. Claude 3 models need `strict: false`. |
-| `"google"`, `"gemini/<model>"` | Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`), the ones `@google/genai` uses. Live probes accepted every keyword tried, so the schema is sent as written. Use `r.field` to put it in the JSON Schema field rather than `parameters`, which is where most Gemini schema errors come from. |
+| `"google"`, `"gemini/<model>"` | Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`), the ones `@google/genai` uses. Live probes accepted every keyword tried, so the schema is sent as written. The exception is draft-07 spellings: Gemini rejected array-form `items`, so draft-07 is rewritten to 2020-12. Use `r.field` to put the schema in the JSON Schema field rather than `parameters`, which is where most Gemini schema errors come from. |
 | `"google-openapi"`, `"vertex"` | Gemini's OpenAPI `Schema` fields (`parameters`, `responseSchema`), which Vertex AI SDKs and older clients build. Only its listed fields are kept (no `additionalProperties`, `$ref`, `const` or `examples`), enums are strings only, nullable fields use `nullable: true`, and type names are upper-case. |
-| Any provider with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
+| `"openai"` or `"anthropic"` with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
 | A capabilities object | Your own rules, for self-hosted or unlisted models. Start from `resolveTarget("openai")` and adjust. |
 
 **How the rules were verified.** Gemini's rules were checked against the live API on 2026-11-02 (`gemini-3.5-flash-lite`). OpenAI's and Anthropic's come from their documentation (checked 2026-11-02). Where the docs say nothing about a keyword, it's treated as unsupported and rewritten, so the output stays on the safe side. The worst case is a change that wasn't needed, not a rejected request. The test suite checks every converted schema against those documented rules. Live API probes (`npm run probe`) will publish a compatibility table; until then, a converted schema that a provider rejects is a bug: please [open an issue](https://github.com/buildwithnikhil/llm-json-schema/issues) with the schema and the error, and corrections ship as patch releases.
 
 ## Stability
 
-The output is guaranteed to be accepted by the target and to decode back to your original shape. The exact output schema is not guaranteed to stay the same between releases.
+The output is meant to be accepted by the target and to decode back to your original shape. A rejection is a bug, so please report it. The exact output schema is not guaranteed to stay the same between releases.
 - **Patch release:** the rules got stricter, fixing a rejection.
 - **Minor release:** the rules got looser, so fewer changes are made.
 - **Major release:** the API changed.

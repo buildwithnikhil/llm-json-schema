@@ -106,6 +106,8 @@ export interface Dereferenced {
   defs: Record<string, SchemaObject>;
   /** Pointer in the original schema for each kept def, for loss paths. */
   defPaths: Record<string, string>;
+  /** Where a `$ref` was replaced by its target, with the reference. */
+  inlined: { path: string; ref: string }[];
 }
 
 /**
@@ -115,6 +117,7 @@ export interface Dereferenced {
 export function dereference(root: SchemaObject, target: string): Dereferenced {
   const defs: Record<string, SchemaObject> = {};
   const defPaths: Record<string, string> = {};
+  const inlined: { path: string; ref: string }[] = [];
   const names = new Map<string, string>(); // ref -> def name
   const nameFor = (ref: string) => {
     let n = names.get(ref);
@@ -148,6 +151,7 @@ export function dereference(root: SchemaObject, target: string): Dereferenced {
         defPaths[name] = ref;
         return expandSiblings({ $ref: `#/$defs/${name}` }, siblings, path, stack);
       }
+      inlined.push({ path, ref });
       return expandSiblings(body, siblings, path, stack);
     }
     const out: SchemaObject = {};
@@ -181,5 +185,5 @@ export function dereference(root: SchemaObject, target: string): Dereferenced {
     defs[names.get("#")!] = expandedRoot;
     defPaths[names.get("#")!] = "#";
   }
-  return { root: expandedRoot, defs, defPaths };
+  return { root: expandedRoot, defs, defPaths, inlined };
 }

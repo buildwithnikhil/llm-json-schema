@@ -1,6 +1,6 @@
 {
   "name": "llm-json-schema",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Make any JSON Schema work with every LLM provider: per-model rules for OpenAI strict mode, Anthropic and Gemini, a report of what was changed, and a decoder back to your original shape. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.cjs",

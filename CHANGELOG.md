@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (2026-11-02)
+
+- **Gemini (`google`):** draft-07 spellings (array `items`, `definitions`, `nullable`) are now rewritten to 2020-12. A live probe showed Gemini rejects array-form `items`.
+- **`losses`** now lists inlined `$ref`s, as `rewritten`.
+- **README:** non-strict root unions of objects are described as merged, not wrapped. `strict: false` applies to OpenAI and Anthropic only. The stability promise no longer overstates what's been tested live.
+
 ## 0.2.0 (2026-11-02)
 
 - **Gemini support.**

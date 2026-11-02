@@ -58,6 +58,11 @@ export interface Capabilities {
   nullableKeyword?: boolean;
   /** Type names are sent upper-case ("STRING", "OBJECT"), as Gemini's OpenAPI `Schema` expects. */
   upperCaseTypes?: boolean;
+  /**
+   * Only draft 2020-12 spellings are accepted: array `items` must be `prefixItems`, `definitions` must be `$defs`,
+   * OpenAPI `nullable` must be a null type. Applies to targets that otherwise take the schema as written.
+   */
+  draft202012?: boolean;
   /** Limits; exceeding one throws `UnsupportedSchemaError`. */
   limits: {
     maxDepth?: number;
