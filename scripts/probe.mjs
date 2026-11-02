@@ -2,7 +2,7 @@
 // Checks the rules table against the live API.
 //
 //   OPENAI_API_KEY=... ANTHROPIC_API_KEY=... GEMINI_API_KEY=... node scripts/probe.mjs [provider/model ...]
-//   (default: openai/gpt-4.1-mini anthropic/claude-haiku-4-5 google/gemini-2.5-flash google-openapi/gemini-2.5-flash;
+//   (default: openai/gpt-4.1-mini anthropic/claude-haiku-4-5 google/gemini-3.5-flash-lite google-openapi/gemini-3.5-flash-lite;
 //   providers without a key are skipped. A Gemini key is free from Google AI Studio.)
 //
 // Part 1 sends one schema per keyword as a strict tool and records accepted / rejected. Part 2 sends every
@@ -19,7 +19,7 @@ const gemini = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
 const keys = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, google: gemini, "google-openapi": gemini };
 const requested = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ["openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5", "google/gemini-2.5-flash", "google-openapi/gemini-2.5-flash"];
+  : ["openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5", "google/gemini-3.5-flash-lite", "google-openapi/gemini-3.5-flash-lite"];
 const models = requested.filter((m) => {
   const provider = m.split("/")[0];
   if (!(provider in keys)) throw new Error(`No probe sender for ${provider}`);
@@ -71,7 +71,25 @@ const probes = [
   { keyword: "empty schema", schema: one({}), expect: false, rule: "openSchemas" },
 ];
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Retries busy and rate-limited responses (429, 500, 503) with backoff; free-tier keys hit these often.
 async function send(target, parameters, strict = true) {
+  for (let attempt = 0; ; attempt++) {
+    await sleep(Number(process.env.PROBE_DELAY_MS ?? 1500));
+    try {
+      return await sendOnce(target, parameters, strict);
+    } catch (e) {
+      const busy = /HTTP (429|500|503)/.test(e.message);
+      if (!busy || attempt >= 5) throw e;
+      const wait = 5000 * 2 ** attempt;
+      console.error(`  (busy: ${e.message.match(/HTTP \d+/)[0]}, retrying in ${wait / 1000}s)`);
+      await sleep(wait);
+    }
+  }
+}
+
+async function sendOnce(target, parameters, strict = true) {
   const [provider, ...rest] = target.split("/");
   const model = rest.join("/");
   if (provider === "google" || provider === "google-openapi") {
@@ -122,7 +140,8 @@ const results = [];
 let mismatches = 0;
 for (const model of models) {
   const caps = resolveTarget(model);
-  const allow = new Set(caps.keywords);
+  const allow = caps.keywords === "any" ? { has: () => true } : new Set(caps.keywords);
+  const formatOk = (f) => caps.formats === "any" || caps.formats.includes(f);
   const ruleOk = (p) => {
     const k = p.keyword;
     const v = p.schema.properties?.x?.[k];
@@ -131,7 +150,7 @@ for (const model of models) {
   // The keyword probes are written in JSON Schema; the OpenAPI dialect only runs the converted corpus.
   for (const p of caps.upperCaseTypes ? [] : probes) {
     let expected = p.expect;
-    if (expected === undefined && !p.note) expected = p.formatValue ? allow.has("format") && caps.formats.includes(p.formatValue) : allow.has(p.keyword) && ruleOk(p);
+    if (expected === undefined && !p.note) expected = p.formatValue ? allow.has("format") && formatOk(p.formatValue) : allow.has(p.keyword) && ruleOk(p);
     if (p.minItemsValue !== undefined) expected = allow.has("minItems") && (!caps.rules?.minItems || caps.rules.minItems(p.minItemsValue));
     if (p.rule) expected = p.rule === "allRequired" || p.rule === "openSchemas" ? caps[p.rule] === false : p.rule === "closedObjects" ? !caps.closedObjects : p.rule === "rootObject" ? !caps.rootObject : caps[p.rule];
     const r = await send(model, p.schema, p.strict ?? true);
