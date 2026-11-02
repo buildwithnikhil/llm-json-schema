@@ -32,6 +32,7 @@ for (const [name, schema] of Object.entries(corpus)) {
     });
     test(`google (JSON Schema fields): ${name} (${use}) is sent as written`, () => {
       const r = convert(schema, { target: "gemini/gemini-3.5-flash-lite", use });
+      if (name.startsWith("draft-07")) return; // covered by the draft-07 test below
       const { $schema, ...expected } = structuredClone(schema);
       assert.deepEqual(r.schema, expected);
       assert.deepEqual(r.losses, []);
@@ -103,4 +104,14 @@ test("Gemini with Zod (zod#5807: anyOf from toJSONSchema)", () => {
     if (target === "google-openapi") assertGeminiOpenApi(r.schema);
     assert.equal(s.safeParse(r.decode({ id: 1, kind: "a" })).success, true);
   }
+});
+
+test("google (JSON Schema fields): draft-07 spellings become 2020-12 (live probe: array items were rejected)", () => {
+  const r = convert(corpus["draft-07 definitions, tuple items and nullable"], { target: "google" });
+  assert.deepEqual(r.schema.$defs.Point, { type: "array", prefixItems: [{ type: "number" }, { type: "number" }], items: false });
+  assert.equal(r.schema.definitions, undefined);
+  assert.deepEqual(r.schema.properties.at, { $ref: "#/$defs/Point" });
+  assert.deepEqual(r.schema.properties.note.type, ["string", "null"]);
+  assert.equal(r.losses.length, 1);
+  assert.equal(r.losses[0].action, "rewritten");
 });

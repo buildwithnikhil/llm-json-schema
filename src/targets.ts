@@ -71,11 +71,13 @@ const anthropicStrict = (id: string): Capabilities => ({
 // JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`): live probes on 2026-11-02
 // (gemini-3.5-flash-lite) accepted every keyword tried, including const, examples, string/number bounds, oneOf,
 // allOf, not, $ref with siblings, recursion and a root anyOf, so the schema is sent as written.
-// Accepted isn't the same as enforced: check() still validates the output against the original schema.
+// It did reject draft-07 tuple syntax ("schema at definitions.Point.items must be a boolean or an object"), so
+// draft-07 spellings are rewritten to 2020-12. Accepted isn't the same as enforced: check() still validates the output.
 const googleJson = (id: string): Capabilities => ({
   id,
   provider: "google",
   keywords: "any",
+  draft202012: true,
   formats: "any",
   allRequired: false,
   closedObjects: false,

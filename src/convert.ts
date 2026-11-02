@@ -467,13 +467,14 @@ export function convert(schema: JSONSchema, options: ConvertOptions): ConvertRes
 
   if (caps.keywords === "any") return looseConvert(schema, caps, use);
   const original = normalize(schema);
-  const { root, defs, defPaths } = dereference(original, caps.id);
+  const { root, defs, defPaths, inlined } = dereference(original, caps.id);
   const defNames = Object.keys(defs);
   if (defNames.length > 0 && !(caps.refs && caps.recursion)) {
     throw new UnsupportedSchemaError(defPaths[defNames[0]!]!, caps.id, "recursive schemas aren't accepted", "Limit the depth by writing out a fixed number of levels");
   }
 
   const ctx: Ctx = { caps, allow: new Set(caps.keywords), losses: [], defDecoders: new Map() };
+  for (const { path, ref } of inlined) loss(ctx, path, "$ref", ref, "rewritten", `$ref "${ref}" replaced by the schema it points to`);
   const outDefs: Record<string, SchemaObject> = {};
   for (const name of defNames) {
     const n = node(defs[name]!, defPaths[name]!, ctx);
@@ -525,8 +526,17 @@ const isRootObject = (s: SchemaObject) => s.type === "object" && !Array.isArray(
 function looseConvert(schema: JSONSchema, caps: Capabilities, use: "tool" | "output"): ConvertResult {
   const original = normalize(schema);
   const losses: Loss[] = [];
-  let out = JSON.parse(JSON.stringify(typeof schema === "boolean" ? original : schema)) as SchemaObject;
+  let out = JSON.parse(JSON.stringify(typeof schema === "boolean" || caps.draft202012 ? original : schema)) as SchemaObject;
   delete out.$schema;
+  if (caps.draft202012 && typeof schema === "object") {
+    const raw = { ...schema } as SchemaObject;
+    delete raw.$schema;
+    delete raw.$id;
+    delete raw.$comment;
+    if (JSON.stringify(raw) !== JSON.stringify(out)) {
+      losses.push({ path: "#", keyword: "$schema", value: "draft-07", action: "rewritten", note: `draft-07 spellings (array items, definitions, nullable) rewritten to 2020-12, which ${caps.id} requires` });
+    }
+  }
   let decode: Decoder | undefined;
   if (caps.rootObject && !isRootObject(out)) {
     const flat = Array.isArray(out.allOf) && out.type === undefined ? flattenAllOf(out) : null;
