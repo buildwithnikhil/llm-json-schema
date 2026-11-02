@@ -152,7 +152,7 @@ for (const model of models) {
     let expected = p.expect;
     if (expected === undefined && !p.note) expected = p.formatValue ? allow.has("format") && formatOk(p.formatValue) : allow.has(p.keyword) && ruleOk(p);
     if (p.minItemsValue !== undefined) expected = allow.has("minItems") && (!caps.rules?.minItems || caps.rules.minItems(p.minItemsValue));
-    if (p.rule) expected = p.rule === "allRequired" || p.rule === "openSchemas" ? caps[p.rule] === false : p.rule === "closedObjects" ? !caps.closedObjects : p.rule === "rootObject" ? !caps.rootObject : caps[p.rule];
+    if (p.rule) expected = p.rule === "allRequired" ? caps.allRequired === false : p.rule === "openSchemas" ? caps.openSchemas === true : p.rule === "closedObjects" ? !caps.closedObjects : p.rule === "rootObject" ? !caps.rootObject : caps[p.rule];
     const r = await send(model, p.schema, p.strict ?? true);
     const ok = expected === undefined || r.accepted === expected;
     if (!ok) mismatches++;

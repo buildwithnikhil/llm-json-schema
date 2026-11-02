@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 (2026-11-02)
+
+- **Compatibility table:** [docs/compatibility.md](docs/compatibility.md), generated from live probe results (Gemini, 59 checks) and the documented rules (OpenAI, Anthropic). The raw results are in `docs/probe-results/`. Regenerate with `npm run compat`.
+- **Probe:** fixed the expectation for the "empty schema" check.
+
 ## 0.2.1 (2026-11-02)
 
 - **Gemini (`google`):** draft-07 spellings (array `items`, `definitions`, `nullable`) are now rewritten to 2020-12. A live probe showed Gemini rejects array-form `items`.
