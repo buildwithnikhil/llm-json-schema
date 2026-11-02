@@ -249,8 +249,35 @@ const ollamaFormat = (id: string): Capabilities => ({
   fields: { tool: "tools[].function.parameters", output: "format" },
 });
 
+// Amazon Bedrock structured outputs, from https://docs.aws.amazon.com/bedrock/latest/userguide/structured-output.md
+// and the Converse API reference, checked 2026-11-02. Applies to strict tools and output schemas: "every object ... must
+// explicitly set additionalProperties to false", enums of primitives, const, anyOf, internal $ref/$defs, listed formats,
+// patterns without lookaround or backreferences, minItems 0 or 1, "maximum of 12 optional properties" and 16
+// union-typed properties; no recursion, number bounds or string lengths. Nova and Llama models don't support it.
+const bedrockStrict = (id: string): Capabilities => ({
+  id,
+  provider: "bedrock",
+  keywords: [
+    "type", "properties", "required", "additionalProperties", "items", "enum", "const", "anyOf", "$ref", "$defs",
+    "pattern", "format", "minItems", "description", "default",
+  ],
+  rules: { minItems: (v) => v === 0 || v === 1, pattern: simplePattern, enum: (v) => Array.isArray(v) && v.every(primitive), const: primitive },
+  formats: ["date-time", "time", "date", "duration", "email", "hostname", "uri", "ipv4", "ipv6", "uuid"],
+  allRequired: false,
+  closedObjects: true,
+  rootObject: true,
+  refs: true,
+  refSiblings: false,
+  recursion: false,
+  typeArrays: true,
+  openSchemas: false,
+  limits: { maxOptionalProperties: 12, maxUnionProperties: 16 },
+  fields: { tool: "toolConfig.tools[].toolSpec.inputSchema.json", output: "outputConfig.textFormat.structure.jsonSchema.schema" },
+});
+
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
-const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek" | "mistral"): Capabilities => ({
+const BEDROCK_FIELDS = { tool: "toolConfig.tools[].toolSpec.inputSchema.json", output: "outputConfig.textFormat.structure.jsonSchema.schema" };
+const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek" | "mistral" | "bedrock"): Capabilities => ({
   id,
   provider,
   keywords: "any",
@@ -265,12 +292,12 @@ const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek
   openSchemas: true,
   limits: {},
   fields:
-    provider !== "anthropic"
+    provider === "bedrock"
+      ? BEDROCK_FIELDS
+      : provider !== "anthropic"
       ? { tool: "tools[].function.parameters", output: "response_format.json_schema.schema" }
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
-
-const PLANNED = new Set(["bedrock"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
 export function resolveTarget(target: string | Capabilities, options: { strict?: boolean; use?: Use } = {}): Capabilities {
@@ -297,18 +324,19 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
   // strict flag) but list no schema rules, so the schema is sent as written with an object root, strict or not.
   if (provider === "mistral") return loose(target, "mistral");
   if (provider === "ollama") return options.use === "output" ? ollamaFormat(target) : ollamaTools(target);
+  if (provider === "bedrock") {
+    if (!strict) return loose(target, "bedrock");
+    if (/(^|\.)(amazon\.nova|meta\.llama)/.test(model)) {
+      throw new Error(`${target} doesn't support structured outputs or strict tools on Bedrock. Use { strict: false }.`);
+    }
+    return bedrockStrict(target);
+  }
   // xAI has one mode: its schema rules apply with or without `strict`.
   if (provider === "xai" || provider === "grok") return xaiCaps(target);
   // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
   if (provider === "google" || provider === "gemini") return googleJson(target);
   if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
-  if (PLANNED.has(provider)) {
-    throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq, xAI, DeepSeek, Mistral and Ollama. ` +
-        `Until then, pass a capabilities object as the target.`,
-    );
-  }
   throw new Error(
-    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek", "mistral", "ollama" or pass a capabilities object.`,
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek", "mistral", "ollama", "bedrock" or pass a capabilities object.`,
   );
 }

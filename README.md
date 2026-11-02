@@ -10,7 +10,7 @@ Every provider accepts a different, stricter subset of JSON Schema, and the rule
 
 `llm-json-schema` rewrites the schema into the form the target model accepts, reports exactly what it changed, and converts the model's output back into your original shape.
 
-> **Status: 0.7.** OpenAI, Anthropic, Gemini (both schema dialects), Groq, xAI, DeepSeek, Mistral and Ollama are supported.
+> **Status: 0.8.** OpenAI, Anthropic, Gemini (both schema dialects), Groq, xAI, DeepSeek, Mistral, Ollama and Amazon Bedrock are supported.
 
 ```sh
 npm install llm-json-schema
@@ -78,7 +78,8 @@ If no faithful version of the schema exists for the target, `convert()` throws `
 | `"deepseek"`, `"deepseek/<model>"` | DeepSeek's strict tool calls (beta: use `base_url` `https://api.deepseek.com/beta` and `strict: true` on every function). Every property required, closed objects, recursion via `$def` (DeepSeek's spelling). String and array length bounds move to the description; number bounds, `pattern` and listed formats stay. For `use: "output"`, the schema goes in the Responses API's `text.format.schema`; Chat Completions has no JSON Schema output. |
 | `"mistral"`, `"mistral/<model>"` | Mistral's docs name the fields (`tools[].function.parameters`, `response_format.json_schema`) but list no schema rules, so the schema is sent as written, with an object root for tools. |
 | `"ollama"`, `"ollama/<model>"` | Two rule sets, picked by `use`. **Tools:** Ollama keeps only `type`, `properties`, `required`, `items`, `anyOf`, `enum` and `description` and silently drops everything else, so other keywords are moved to the description where the model can still see them. **`use: "output"`** (the `format` field): llama.cpp's grammar converter, so patterns are anchored (`^…$`), number bounds and `prefixItems` are avoided, `$ref`s are inlined, and free-form objects get `additionalProperties: true`. |
-| `"openai"`, `"anthropic"`, `"groq"` or `"deepseek"` with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
+| `"bedrock"`, `"bedrock/<model id>"` | Amazon Bedrock structured outputs and strict tools (Converse API): closed objects, optional fields allowed, `const`/`default`/listed formats kept, `minItems` 0 or 1 only, no recursion, number or length bounds. At most 12 optional and 16 union-typed properties. Nova and Llama models don't support it, so use `strict: false`. For `use: "output"`, Bedrock takes the schema as a **JSON string**: send `JSON.stringify(r.schema)`. |
+| `"openai"`, `"anthropic"`, `"groq"`, `"deepseek"` or `"bedrock"` with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
 | A capabilities object | Your own rules, for self-hosted or unlisted models. Start from `resolveTarget("openai")` and adjust. |
 
 **How the rules were verified.** Gemini's rules were checked against the live API on 2026-11-02 (`gemini-3.5-flash-lite`). OpenAI's and Anthropic's come from their documentation (checked 2026-11-02). Where the docs say nothing about a keyword, it's treated as unsupported and rewritten, so the output stays on the safe side. The worst case is a change that wasn't needed, not a rejected request. The test suite checks every converted schema against those documented rules. See the **[compatibility table](docs/compatibility.md)** for what was tested and how each keyword is handled per target. A converted schema that a provider rejects is a bug: please [open an issue](https://github.com/buildwithnikhil/llm-json-schema/issues) with the schema and the error, and corrections ship as patch releases.
