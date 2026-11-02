@@ -50,16 +50,16 @@ test("xai: patterns are full-match, so unanchored ones are widened; unsupported 
     { target: "xai" },
   );
   const p = r.schema.properties;
-  assert.equal(p.contains.pattern, ".*(?:@).*");
-  assert.equal(p.prefix.pattern, "^(?:ab).*");
+  assert.equal(p.contains.pattern, "^.*(?:@).*$");
+  assert.equal(p.prefix.pattern, "^(?:ab).*$");
   assert.equal(p.anchored.pattern, "^[a-z]+$");
-  assert.equal(p.either.pattern, ".*(?:a|b).*");
+  assert.equal(p.either.pattern, "^.*(?:a|b).*$");
   for (const k of ["look", "prop", "word"]) {
     assert.equal(p[k].pattern, undefined, k);
     assert.match(p[k].description, /Must match the regular expression/);
   }
   // The widened patterns accept exactly what the original accepts, anywhere in the string.
-  assert.ok(new RegExp(`^${p.contains.pattern}$`, "s").test("me@x.dev"));
+  assert.ok(new RegExp(p.contains.pattern, "s").test("me@x.dev"));
   assert.equal(r.check({ look: "xyz" }).valid, false);
 });
 
