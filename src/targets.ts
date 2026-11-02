@@ -137,6 +137,38 @@ const groqStrict = (id: string): Capabilities => ({
   fields: { tool: "tools[].function.parameters", output: "response_format.json_schema.schema" },
 });
 
+// xAI (Grok) structured outputs and function calling, from https://docs.x.ai/developers/model-capabilities/text/structured-outputs
+// and https://docs.x.ai/developers/tools/function-calling, checked 2026-11-02. One mode: "the strict flag is implicitly
+// always true". Optional fields are allowed, objects are closed unless additionalProperties is true, $ref/$defs are
+// "non-circular references only", enforced formats are listed, and pattern is an anchored ECMAScript subset without
+// backreferences, \p{…}, \b, lookaround or inline modifiers. not/if/then/else and multi-branch allOf are best effort.
+const xaiCaps = (id: string): Capabilities => ({
+  id,
+  provider: "xai",
+  keywords: [
+    "type", "properties", "required", "additionalProperties", "items", "prefixItems", "enum", "const", "anyOf", "$ref", "$defs",
+    "format", "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength",
+    "minItems", "maxItems", "minProperties", "maxProperties", "description", "default",
+  ],
+  rules: {
+    pattern: (v) => typeof v === "string" && !/\(\?[=!<]|\\[1-9]|\\[bB]|\\k<|\\[pP]\{|\(\?[a-zA-Z-]+[:)]/.test(v),
+    enum: (v) => Array.isArray(v) && v.length > 0,
+  },
+  formats: ["date", "time", "date-time", "email", "uuid", "ipv4", "ipv6", "uri"],
+  allRequired: false,
+  closedObjects: false,
+  closedByDefault: true,
+  patternFullMatch: true,
+  rootObject: true,
+  refs: true,
+  refSiblings: false,
+  recursion: false,
+  typeArrays: true,
+  openSchemas: true,
+  limits: {},
+  fields: { tool: "tools[].function.parameters", output: "response_format.json_schema.schema" },
+});
+
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
 const loose = (id: string, provider: "openai" | "anthropic" | "groq"): Capabilities => ({
   id,
@@ -158,7 +190,7 @@ const loose = (id: string, provider: "openai" | "anthropic" | "groq"): Capabilit
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
-const PLANNED = new Set(["bedrock", "mistral", "xai", "deepseek", "ollama"]);
+const PLANNED = new Set(["bedrock", "mistral", "deepseek", "ollama"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
 export function resolveTarget(target: string | Capabilities, options: { strict?: boolean } = {}): Capabilities {
@@ -179,16 +211,18 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
     return anthropicStrict(target);
   }
   if (provider === "groq") return strict ? groqStrict(target) : loose(target, "groq");
+  // xAI has one mode: its schema rules apply with or without `strict`.
+  if (provider === "xai" || provider === "grok") return xaiCaps(target);
   // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
   if (provider === "google" || provider === "gemini") return googleJson(target);
   if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
   if (PLANNED.has(provider)) {
     throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini and Groq. ` +
+      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq and xAI. ` +
         `Until then, pass a capabilities object as the target.`,
     );
   }
   throw new Error(
-    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq" or pass a capabilities object.`,
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai" or pass a capabilities object.`,
   );
 }

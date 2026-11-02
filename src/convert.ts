@@ -76,7 +76,11 @@ function filterKeywords(src: SchemaObject, out: SchemaObject, path: string, ctx:
     if (allowed && k === "format" && ctx.caps.formats !== "any" && !ctx.caps.formats.includes(String(v))) allowed = false;
     if (allowed && ctx.caps.rules?.[k] && !ctx.caps.rules[k]!(v)) allowed = false;
     if (allowed) {
-      out[k] = v;
+      if (k === "pattern" && ctx.caps.patternFullMatch && typeof v === "string") {
+        const full = fullMatchPattern(v);
+        if (full !== v) loss(ctx, path, k, v, "rewritten", `${ctx.caps.id} matches patterns against the whole string; widened to ${JSON.stringify(full)} to keep the meaning`);
+        out[k] = full;
+      } else out[k] = v;
       continue;
     }
     if (k === "default" || k === "examples") {
@@ -329,6 +333,9 @@ function object(s: SchemaObject, path: string, ctx: Ctx): Node {
     out.additionalProperties = false;
   } else if (has(s, "additionalProperties") && allow.has("additionalProperties")) {
     out.additionalProperties = isObj(extra) ? node(extra as SchemaObject, `${path}/additionalProperties`, ctx).schema : extra;
+  } else if (caps.closedByDefault && declared.length === 0 && !mapValue && !hasPatterns && extra !== false) {
+    // A free-form object: closed-by-default targets would only allow {} without this.
+    out.additionalProperties = true;
   } else if (extra === false) {
     loss(ctx, path, "additionalProperties", false, "relaxed", `additionalProperties isn't accepted by ${caps.id}; check() rejects extra keys`);
   } else extraKeysDropped();
@@ -396,6 +403,7 @@ function array(s: SchemaObject, path: string, ctx: Ctx): Node {
 function anything(s: SchemaObject, path: string, ctx: Ctx, kind?: "object"): Node {
   if (ctx.caps.openSchemas) {
     const out: SchemaObject = kind ? { type: "object" } : {};
+    if (kind && ctx.caps.closedByDefault) out.additionalProperties = true;
     if (typeof s.description === "string" && ctx.allow.has("description")) out.description = s.description;
     filterKeywords(s, out, path, ctx);
     return { schema: out };
@@ -650,4 +658,13 @@ function upperCaseTypes(s: SchemaObject): SchemaObject {
     return out;
   };
   return walk(s) as SchemaObject;
+}
+
+/** A pattern that matches the whole string means the same as `pattern` does in JSON Schema (match anywhere). */
+export function fullMatchPattern(p: string): string {
+  const start = p.startsWith("^");
+  const end = p.endsWith("$") && !p.endsWith("\\$");
+  if (start && end) return p;
+  const core = p.slice(start ? 1 : 0, end ? -1 : undefined);
+  return `${start ? "^" : ".*"}(?:${core})${end ? "$" : ".*"}`;
 }
