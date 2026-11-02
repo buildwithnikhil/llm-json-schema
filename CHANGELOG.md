@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0 (2026-11-02)
+
+- **Mistral target:** `"mistral"` / `"mistral/<model>"`. Mistral's docs (checked 2026-11-02) list no JSON Schema rules for tools or structured output, so the schema is sent as written, with an object root for tool parameters. Rules will be added if probes or docs show rejections.
+
 ## 0.5.0 (2026-11-02)
 
 - **DeepSeek target:** `"deepseek"` / `"deepseek/<model>"` follows DeepSeek's strict tool-call rules (beta endpoint, checked 2026-11-02). Every property is required, objects are closed, and recursion uses `$def`. String and array bounds move to the description. `strict: false` sends the schema as written.

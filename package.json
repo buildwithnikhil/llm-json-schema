@@ -1,6 +1,6 @@
 {
   "name": "llm-json-schema",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Make any JSON Schema work with every LLM provider: per-model rules for OpenAI strict mode, Anthropic and Gemini, a report of what was changed, and a decoder back to your original shape. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -33,7 +33,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && npm run test:run",
-    "test:run": "node --test test/convert.test.mjs test/anthropic.test.mjs test/google.test.mjs test/groq.test.mjs test/xai.test.mjs test/deepseek.test.mjs test/cjs.test.cjs",
+    "test:run": "node --test test/convert.test.mjs test/anthropic.test.mjs test/google.test.mjs test/groq.test.mjs test/xai.test.mjs test/deepseek.test.mjs test/mistral.test.mjs test/cjs.test.cjs",
     "probe": "node scripts/probe.mjs",
     "prepublishOnly": "npm run typecheck && npm test",
     "compat": "npm run build && node scripts/compat-table.mjs"

@@ -10,7 +10,7 @@ Every provider accepts a different, stricter subset of JSON Schema, and the rule
 
 `llm-json-schema` rewrites the schema into the form the target model accepts, reports exactly what it changed, and converts the model's output back into your original shape.
 
-> **Status: 0.5.** OpenAI, Anthropic, Gemini (both schema dialects), Groq, xAI and DeepSeek are supported.
+> **Status: 0.6.** OpenAI, Anthropic, Gemini (both schema dialects), Groq, xAI, DeepSeek and Mistral are supported.
 
 ```sh
 npm install llm-json-schema
@@ -76,6 +76,7 @@ If no faithful version of the schema exists for the target, `convert()` throws `
 | `"groq"`, `"groq/<model>"` | Groq's strict structured outputs: every property required, closed objects, `anyOf`, `$defs`/`$ref` and recursion. Groq doesn't document `format`, `pattern` or bounds, so they're moved to the description. Groq documents strict mode for some models only (gpt-oss, qwen3.8, muse-spark-open). For other models, use `strict: false`. |
 | `"xai"`, `"xai/<model>"`, `"grok"` | xAI's schema rules, which always apply (`strict` changes nothing): optional fields allowed, bounds/`const`/`uri` kept, no recursion. Patterns match the whole string on xAI, so unanchored ones are widened (`@` → `.*(?:@).*`), and lookaround, `\b`, `\p{…}`, backreferences and inline flags move to the description. Objects are closed by default, so free-form objects get `additionalProperties: true`. `not`/`if`/`then`/`else` are dropped (xAI treats them as best effort); `check()` enforces them. |
 | `"deepseek"`, `"deepseek/<model>"` | DeepSeek's strict tool calls (beta: use `base_url` `https://api.deepseek.com/beta` and `strict: true` on every function). Every property required, closed objects, recursion via `$def` (DeepSeek's spelling). String and array length bounds move to the description; number bounds, `pattern` and listed formats stay. For `use: "output"`, the schema goes in the Responses API's `text.format.schema`; Chat Completions has no JSON Schema output. |
+| `"mistral"`, `"mistral/<model>"` | Mistral's docs name the fields (`tools[].function.parameters`, `response_format.json_schema`) but list no schema rules, so the schema is sent as written, with an object root for tools. |
 | `"openai"`, `"anthropic"`, `"groq"` or `"deepseek"` with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
 | A capabilities object | Your own rules, for self-hosted or unlisted models. Start from `resolveTarget("openai")` and adjust. |
 
