@@ -10,7 +10,7 @@ Every provider accepts a different, stricter subset of JSON Schema, and the rule
 
 `llm-json-schema` rewrites the schema into the form the target model accepts, reports exactly what it changed, and converts the model's output back into your original shape.
 
-> **Status: 0.3.** OpenAI, Anthropic, Gemini (both schema dialects) and Groq are supported.
+> **Status: 0.4.** OpenAI, Anthropic, Gemini (both schema dialects), Groq and xAI are supported.
 
 ```sh
 npm install llm-json-schema
@@ -74,6 +74,7 @@ If no faithful version of the schema exists for the target, `convert()` throws `
 | `"google"`, `"gemini/<model>"` | Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`), the ones `@google/genai` uses. Live probes accepted every keyword tried, so the schema is sent as written. The exception is draft-07 spellings: Gemini rejected array-form `items`, so draft-07 is rewritten to 2020-12. Use `r.field` to put the schema in the JSON Schema field rather than `parameters`, which is where most Gemini schema errors come from. |
 | `"google-openapi"`, `"vertex"` | Gemini's OpenAPI `Schema` fields (`parameters`, `responseSchema`), which Vertex AI SDKs and older clients build. Only its listed fields are kept (no `additionalProperties`, `$ref`, `const` or `examples`), enums are strings only, nullable fields use `nullable: true`, and type names are upper-case. |
 | `"groq"`, `"groq/<model>"` | Groq's strict structured outputs: every property required, closed objects, `anyOf`, `$defs`/`$ref` and recursion. Groq doesn't document `format`, `pattern` or bounds, so they're moved to the description. Groq documents strict mode for some models only (gpt-oss, qwen3.8, muse-spark-open). For other models, use `strict: false`. |
+| `"xai"`, `"xai/<model>"`, `"grok"` | xAI's schema rules, which always apply (`strict` changes nothing): optional fields allowed, bounds/`const`/`uri` kept, no recursion. Patterns match the whole string on xAI, so unanchored ones are widened (`@` → `.*(?:@).*`), and lookaround, `\b`, `\p{…}`, backreferences and inline flags move to the description. Objects are closed by default, so free-form objects get `additionalProperties: true`. `not`/`if`/`then`/`else` are dropped (xAI treats them as best effort); `check()` enforces them. |
 | `"openai"`, `"anthropic"` or `"groq"` with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
 | A capabilities object | Your own rules, for self-hosted or unlisted models. Start from `resolveTarget("openai")` and adjust. |
 

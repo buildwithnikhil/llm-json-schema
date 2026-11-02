@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 (2026-11-02)
+
+- **xAI target:** `"xai"` / `"xai/<model>"` / `"grok"` follows xAI's documented rules (checked 2026-11-02). Optional fields are allowed, bounds and `const` are kept, enforced formats are kept, and there's no recursion.
+- **New capability `patternFullMatch`:** for targets that match `pattern` against the whole string, unanchored patterns are widened so they keep their JSON Schema meaning. Recorded as `rewritten`.
+- **New capability `closedByDefault`:** for targets whose objects are closed unless told otherwise, free-form objects get `additionalProperties: true`.
+
 ## 0.3.0 (2026-11-02)
 
 - **Groq target:** `"groq"` / `"groq/<model>"` follows Groq's strict structured-output rules (all properties required, closed objects, `$defs`/`$ref`, recursion). `strict: false` sends the schema as written, with an object root. Rules come from Groq's docs (checked 2026-11-02).

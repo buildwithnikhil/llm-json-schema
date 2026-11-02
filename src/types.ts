@@ -63,6 +63,10 @@ export interface Capabilities {
    * OpenAPI `nullable` must be a null type. Applies to targets that otherwise take the schema as written.
    */
   draft202012?: boolean;
+  /** `pattern` must match the whole string (implicit `^…$`); unanchored patterns are widened so they keep their meaning. */
+  patternFullMatch?: boolean;
+  /** Objects without `additionalProperties` are closed; free-form objects need an explicit `additionalProperties: true`. */
+  closedByDefault?: boolean;
   /** Limits; exceeding one throws `UnsupportedSchemaError`. */
   limits: {
     maxDepth?: number;
