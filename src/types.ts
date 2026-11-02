@@ -67,6 +67,8 @@ export interface Capabilities {
   patternFullMatch?: boolean;
   /** Objects without `additionalProperties` are closed; free-form objects need an explicit `additionalProperties: true`. */
   closedByDefault?: boolean;
+  /** The keyword the target uses for reusable definitions, when it isn't "$defs" (DeepSeek documents "$def"). */
+  defsKeyword?: string;
   /** Limits; exceeding one throws `UnsupportedSchemaError`. */
   limits: {
     maxDepth?: number;

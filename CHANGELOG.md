@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 (2026-11-02)
+
+- **DeepSeek target:** `"deepseek"` / `"deepseek/<model>"` follows DeepSeek's strict tool-call rules (beta endpoint, checked 2026-11-02). Every property is required, objects are closed, and recursion uses `$def`. String and array bounds move to the description. `strict: false` sends the schema as written.
+- **New capability `defsKeyword`:** for targets that spell `$defs` differently. DeepSeek documents `$def`, and references are rewritten to match.
+
 ## 0.4.0 (2026-11-02)
 
 - **xAI target:** `"xai"` / `"xai/<model>"` / `"grok"` follows xAI's documented rules (checked 2026-11-02). Optional fields are allowed, bounds and `const` are kept, enforced formats are kept, and there's no recursion.
