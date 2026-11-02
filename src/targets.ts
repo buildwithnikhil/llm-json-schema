@@ -116,8 +116,29 @@ const googleOpenApi = (id: string): Capabilities => ({
   fields: { tool: "tools[].functionDeclarations[].parameters", output: "generationConfig.responseSchema" },
 });
 
+// Groq structured outputs, from https://console.groq.com/docs/structured-outputs, checked 2026-11-02.
+// Strict mode: "All schema properties must be marked as required", "All objects must set additionalProperties: false",
+// anyOf, $defs/$ref and recursion ("#" and through $defs) are documented. format, pattern and bounds aren't, so they
+// are treated as unsupported until probed. Strict is documented for a few models (gpt-oss, qwen3.8, muse-spark-open).
+const groqStrict = (id: string): Capabilities => ({
+  id,
+  provider: "groq",
+  keywords: ["type", "properties", "required", "additionalProperties", "items", "enum", "anyOf", "$ref", "$defs", "description"],
+  formats: [],
+  allRequired: true,
+  closedObjects: true,
+  rootObject: true,
+  refs: true,
+  refSiblings: false,
+  recursion: true,
+  typeArrays: true,
+  openSchemas: false,
+  limits: {},
+  fields: { tool: "tools[].function.parameters", output: "response_format.json_schema.schema" },
+});
+
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
-const loose = (id: string, provider: "openai" | "anthropic"): Capabilities => ({
+const loose = (id: string, provider: "openai" | "anthropic" | "groq"): Capabilities => ({
   id,
   provider,
   keywords: "any",
@@ -132,12 +153,12 @@ const loose = (id: string, provider: "openai" | "anthropic"): Capabilities => ({
   openSchemas: true,
   limits: {},
   fields:
-    provider === "openai"
+    provider !== "anthropic"
       ? { tool: "tools[].function.parameters", output: "response_format.json_schema.schema" }
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
-const PLANNED = new Set(["bedrock", "mistral", "groq", "xai", "deepseek", "ollama"]);
+const PLANNED = new Set(["bedrock", "mistral", "xai", "deepseek", "ollama"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
 export function resolveTarget(target: string | Capabilities, options: { strict?: boolean } = {}): Capabilities {
@@ -157,16 +178,17 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
     }
     return anthropicStrict(target);
   }
+  if (provider === "groq") return strict ? groqStrict(target) : loose(target, "groq");
   // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
   if (provider === "google" || provider === "gemini") return googleJson(target);
   if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
   if (PLANNED.has(provider)) {
     throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic and Gemini. ` +
+      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini and Groq. ` +
         `Until then, pass a capabilities object as the target.`,
     );
   }
   throw new Error(
-    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi" or pass a capabilities object.`,
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq" or pass a capabilities object.`,
   );
 }

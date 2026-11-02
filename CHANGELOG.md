@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-11-02)
+
+- **Groq target:** `"groq"` / `"groq/<model>"` follows Groq's strict structured-output rules (all properties required, closed objects, `$defs`/`$ref`, recursion). `strict: false` sends the schema as written, with an object root. Rules come from Groq's docs (checked 2026-11-02).
+- **Tests:** a shared conformance check (`test/conformance.mjs`) validates converted schemas against any target's rules.
+
 ## 0.2.2 (2026-11-02)
 
 - **Compatibility table:** [docs/compatibility.md](docs/compatibility.md), generated from live probe results (Gemini, 59 checks) and the documented rules (OpenAI, Anthropic). The raw results are in `docs/probe-results/`. Regenerate with `npm run compat`.
