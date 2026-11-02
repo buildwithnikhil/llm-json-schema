@@ -173,7 +173,7 @@ test("errors: external $ref, too deep, too many enum values, unknown target, los
   assert.throws(() => convert(deep, { target: "openai" }), /deeper than the limit of 10/);
   assert.throws(() => convert({ type: "object", properties: { e: { enum: Array.from({ length: 1001 }, (_, i) => i) } } }, { target: "openai" }), /enum values exceed/);
   assert.throws(() => convert({}, { target: "nope" }), /Unknown provider/);
-  assert.throws(() => convert({}, { target: "google" }), /isn't supported yet/);
+  assert.throws(() => convert({}, { target: "mistral" }), /isn't supported yet/);
   assert.throws(() => convert({ type: "object", properties: { a: { type: "string", minLength: 1 } }, required: ["a"] }, { target: "openai", lossless: true }), UnsupportedSchemaError);
   convert({ type: "object", properties: { a: { const: 1 } }, required: ["a"] }, { target: "openai", lossless: true }); // only rewrites
 });

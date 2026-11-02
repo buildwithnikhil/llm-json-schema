@@ -99,7 +99,7 @@ const ASSERTIONS = new Set(["minLength", "maxLength", "pattern", "format", "mini
 const isKnownAssertion = (k: string) => ASSERTIONS.has(k);
 
 function acceptsNull(s: SchemaObject): boolean {
-  if (typesOf(s).includes("null")) return true;
+  if (typesOf(s).includes("null") || s.nullable === true) return true;
   if (Array.isArray(s.anyOf)) return s.anyOf.some((b) => isObj(b) && acceptsNull(b as SchemaObject));
   if (Array.isArray(s.enum)) return s.enum.includes(null);
   return false;
@@ -109,6 +109,7 @@ function addNull(s: SchemaObject, ctx: Ctx): SchemaObject {
   if (acceptsNull(s)) return s;
   if (Array.isArray(s.anyOf)) return { ...s, anyOf: [...s.anyOf, NULL] };
   const types = typesOf(s);
+  if (ctx.caps.nullableKeyword && types.length === 1 && s.$ref === undefined) return { ...s, nullable: true };
   if (ctx.caps.typeArrays && types.length > 0 && s.$ref === undefined) {
     const out = { ...s, type: [...types, "null"] };
     if (Array.isArray(out.enum)) out.enum = [...out.enum, null];
@@ -217,8 +218,8 @@ function node(input: SchemaObject, path: string, ctx: Ctx): Node {
   else if (kind === "array") result = array(s, path, ctx);
   else if (kind === undefined) result = anything(s, path, ctx);
   else {
-    const out: SchemaObject = { type: s.type };
-    if (Array.isArray(s.enum)) out.enum = s.enum;
+    const out: SchemaObject = { type: caps.typeArrays || !Array.isArray(s.type) ? s.type : kind };
+    if (Array.isArray(s.enum)) out.enum = caps.typeArrays ? s.enum : s.enum.filter((v) => v !== null);
     if (typeof s.description === "string" && allow.has("description")) out.description = s.description;
     filterKeywords(s, out, path, ctx);
     result = { schema: out };
@@ -267,8 +268,10 @@ function object(s: SchemaObject, path: string, ctx: Ctx): Node {
 
   for (const k of Object.keys(props)) if (isNever(props[k])) loss(ctx, `${path}/properties/${esc(k)}`, "not", {}, "rewritten", "a property that can never be present was removed");
 
-  // No listed properties: a map or a free-form object.
-  if (declared.length === 0 && (mapValue || Object.keys(patterns).length > 0) && !(allow.has("additionalProperties") && !caps.closedObjects)) {
+  // No listed properties: a map or a free-form object. Maps the target can't express become [{key, value}] entries.
+  const mapsAllowed = allow.has("additionalProperties") && !caps.closedObjects;
+  const hasPatterns = Object.keys(patterns).length > 0;
+  if (declared.length === 0 && ((mapValue && !mapsAllowed) || (hasPatterns && !allow.has("patternProperties")))) {
     const patternList = Object.entries(patterns);
     const valueSchema: SchemaObject =
       patternList.length === 0 ? mapValue! : patternList.length === 1 && !mapValue ? patternList[0]![1] : { anyOf: [...patternList.map(([, p]) => p), ...(mapValue ? [mapValue] : [])] };
@@ -290,7 +293,7 @@ function object(s: SchemaObject, path: string, ctx: Ctx): Node {
       },
     };
   }
-  if (declared.length === 0 && !caps.openSchemas) return anything(s, path, ctx, "object");
+  if (declared.length === 0 && !mapValue && !hasPatterns && !caps.openSchemas) return anything(s, path, ctx, "object");
 
   const out: SchemaObject = { type: "object" };
   if (typeof s.description === "string" && allow.has("description")) out.description = s.description;
@@ -314,18 +317,21 @@ function object(s: SchemaObject, path: string, ctx: Ctx): Node {
     outProps[k] = schema;
     if (child.decode) decoders[k] = child.decode;
   }
-  out.properties = outProps;
+  if (declared.length > 0 || caps.closedObjects) out.properties = outProps;
   const req = caps.allRequired ? declared : declared.filter((k) => required.has(k));
   if (req.length > 0 || caps.allRequired) out.required = req;
 
+  const extraKeysDropped = () => {
+    if (mapValue || Object.keys(patterns).length > 0) loss(ctx, path, mapValue ? "additionalProperties" : "patternProperties", mapValue ?? patterns, "dropped", `extra keys aren't accepted by ${caps.id} next to listed properties`);
+  };
   if (caps.closedObjects) {
-    if (mapValue || extra === true || extra === undefined || Object.keys(patterns).length > 0) {
-      if (mapValue || Object.keys(patterns).length > 0) loss(ctx, path, mapValue ? "additionalProperties" : "patternProperties", mapValue ?? patterns, "dropped", `extra keys aren't accepted by ${caps.id} next to listed properties`);
-    }
+    extraKeysDropped();
     out.additionalProperties = false;
-  } else if (has(s, "additionalProperties")) {
+  } else if (has(s, "additionalProperties") && allow.has("additionalProperties")) {
     out.additionalProperties = isObj(extra) ? node(extra as SchemaObject, `${path}/additionalProperties`, ctx).schema : extra;
-  }
+  } else if (extra === false) {
+    loss(ctx, path, "additionalProperties", false, "relaxed", `additionalProperties isn't accepted by ${caps.id}; check() rejects extra keys`);
+  } else extraKeysDropped();
   filterKeywords(s, out, path, ctx);
 
   if (Object.keys(decoders).length === 0 && nullToAbsent.size === 0) return { schema: out };
@@ -481,7 +487,8 @@ export function convert(schema: JSONSchema, options: ConvertOptions): ConvertRes
   let decode = top.decode;
   const isPlainObject = isRootObject(final);
   if (caps.rootObject && !isPlainObject) {
-    final = { type: "object", properties: { value: final }, required: ["value"], additionalProperties: false };
+    final = { type: "object", properties: { value: final }, required: ["value"] };
+    if (caps.closedObjects) final.additionalProperties = false;
     const inner = decode;
     decode = (v) => {
       const x = isObj(v) ? v.value : v;
@@ -492,6 +499,7 @@ export function convert(schema: JSONSchema, options: ConvertOptions): ConvertRes
   if (defNames.length > 0) final = { ...final, $defs: outDefs };
   ctx.final = final;
   measure(final, caps, "#");
+  const sent = caps.upperCaseTypes ? upperCaseTypes(final) : final;
 
   if (options.lossless) {
     const first = ctx.losses.find((l) => l.action !== "rewritten");
@@ -499,7 +507,7 @@ export function convert(schema: JSONSchema, options: ConvertOptions): ConvertRes
   }
 
   return {
-    schema: final,
+    schema: sent,
     field: caps.fields[use],
     target: caps,
     losses: ctx.losses,
@@ -615,4 +623,21 @@ function mergeAlternatives(list: JSONSchema[]): JSONSchema {
     for (const v of keys[0] === "const" ? [p.const] : Array.isArray(p.enum) ? p.enum : []) if (!values.some((x) => deepEqual(x, v))) values.push(v);
   }
   return type === undefined ? { enum: values } : { type, enum: values } as SchemaObject;
+}
+
+/** A copy with every `type` name upper-cased ("string" → "STRING"). Decoding keeps using the lower-case schema. */
+function upperCaseTypes(s: SchemaObject): SchemaObject {
+  const walk = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(walk);
+    if (!isObj(x)) return x;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(x)) {
+      if (k === "type") out.type = Array.isArray(v) ? v.map((t) => String(t).toUpperCase()) : String(v).toUpperCase();
+      else if (k === "properties" && isObj(v)) out.properties = Object.fromEntries(Object.entries(v).map(([n, c]) => [n, walk(c)]));
+      else if (k === "enum" || k === "default" || k === "const" || k === "example") out[k] = v;
+      else out[k] = walk(v);
+    }
+    return out;
+  };
+  return walk(s) as SchemaObject;
 }

@@ -5,12 +5,12 @@ Make any JSON Schema work with every LLM provider. No dependencies.
 Every provider accepts a different, stricter subset of JSON Schema, and the rules differ between models from the same provider. A schema from Zod, Pydantic, TypeBox or an MCP server fails with errors like these:
 
 - `Invalid schema for function` (OpenAI strict mode)
-- `400 INVALID_ARGUMENT` and `Unknown name "examples"` (Gemini)
+- `400 INVALID_ARGUMENT` and `Unknown name "additionalProperties"` (Gemini)
 - a rejected `input_schema` (Anthropic)
 
 `llm-json-schema` rewrites the schema into the form the target model accepts, reports exactly what it changed, and converts the model's output back into your original shape.
 
-> **Status: 0.1.** OpenAI and Anthropic are supported, in both strict and non-strict modes. Gemini is next.
+> **Status: 0.2.** OpenAI, Anthropic (strict and non-strict) and Gemini (both schema dialects) are supported.
 
 ```sh
 npm install llm-json-schema
@@ -68,6 +68,8 @@ If no faithful version of the schema exists for the target, `convert()` throws `
 | `"openai"`, `"openai/<model>"` | OpenAI's strict subset: every property required, `additionalProperties: false`, an object at the root, `$defs`/`$ref` and recursion allowed, no `allOf`/`not`/conditionals, at most 10 levels deep, 5,000 properties and 1,000 enum values. |
 | `"openai/ft:<model>"` | The same, without `pattern`, `format`, number bounds or `minItems`/`maxItems`, which fine-tuned models don't support. |
 | `"anthropic"`, `"anthropic/<model>"` | Anthropic's strict tool and JSON-output subset: closed objects, but optional fields are allowed. `const`, `default` and `uri` are kept. No recursion, number or length bounds, `minItems` above 1, or lookaround/backreference patterns. At most 24 optional and 16 union-typed properties. Claude 3 models need `strict: false`. |
+| `"google"`, `"gemini/<model>"` | Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`), the ones `@google/genai` uses. Maps, tuples and optional fields are kept. `oneOf` becomes `anyOf`, a `$ref` can't have sibling keywords, and recursion isn't accepted. |
+| `"google-openapi"`, `"vertex"` | Gemini's OpenAPI `Schema` fields (`parameters`, `responseSchema`), which Vertex AI SDKs and older clients build. Only its listed fields are kept (no `additionalProperties`, `$ref`, `const` or `examples`), enums are strings only, nullable fields use `nullable: true`, and type names are upper-case. |
 | Any provider with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
 | A capabilities object | Your own rules, for self-hosted or unlisted models. Start from `resolveTarget("openai")` and adjust. |
 

@@ -54,6 +54,10 @@ export interface Capabilities {
    * When false, such values are sent as a JSON-encoded string and `decode()` parses them.
    */
   openSchemas: boolean;
+  /** OpenAPI style: nullable values say `nullable: true` (single type) instead of adding "null" to `type`. */
+  nullableKeyword?: boolean;
+  /** Type names are sent upper-case ("STRING", "OBJECT"), as Gemini's OpenAPI `Schema` expects. */
+  upperCaseTypes?: boolean;
   /** Limits; exceeding one throws `UnsupportedSchemaError`. */
   limits: {
     maxDepth?: number;

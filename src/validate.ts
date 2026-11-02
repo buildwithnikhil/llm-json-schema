@@ -110,7 +110,7 @@ function run(value: unknown, schema: SchemaObject, root: SchemaObject, path: str
 
   if (typeof schema.$ref === "string") sub(value, resolvePointer(root, schema.$ref, path, "check"), path);
 
-  if (schema.type !== undefined) {
+  if (schema.type !== undefined && !(value === null && (schema as Record<string, unknown>).nullable === true)) {
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
     if (!types.some((t) => matchesType(value, t))) return fail(`expected ${types.join(" or ")}, got ${typeOf(value)}`);
   }

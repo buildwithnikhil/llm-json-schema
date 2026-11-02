@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-11-02)
+
+- **Gemini support.**
+  - `"google"` / `"gemini/<model>"` target Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`).
+  - `"google-openapi"` / `"vertex"` target the OpenAPI `Schema` fields (`parameters`, `responseSchema`): upper-case types, `nullable`, string-only enums, and no `additionalProperties`.
+- **Fixed:** a wrapped root no longer adds `additionalProperties: false` for targets that don't accept it.
+- **Fixed:** maps are kept as maps for targets that accept `additionalProperties`, instead of being JSON-encoded. `patternProperties` maps still become entries where needed.
+- **Probes:** `scripts/probe.mjs` can test Gemini with a free Google AI Studio key (`GEMINI_API_KEY`).
+- **CI:** builds on Node 24 and tests the built package on Node 18, 20, 22 and 24.
+
 ## 0.1.1 (2026-11-02)
 
 - Add repository, issues and homepage links (github.com/buildwithnikhil/llm-json-schema). No code changes.
