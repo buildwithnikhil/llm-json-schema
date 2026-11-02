@@ -169,8 +169,36 @@ const xaiCaps = (id: string): Capabilities => ({
   fields: { tool: "tools[].function.parameters", output: "response_format.json_schema.schema" },
 });
 
+// DeepSeek strict tool calls (beta), from https://api-docs.deepseek.com/guides/tool_calls, checked 2026-11-02.
+// Needs base_url https://api.deepseek.com/beta and strict: true on every function. "All properties of every object must
+// be set as required, and additionalProperties ... must be set to false". Strings: pattern and format (email, hostname,
+// ipv4, ipv6, uuid); minLength/maxLength unsupported. Numbers: const, default, bounds, multipleOf. Arrays: minItems and
+// maxItems unsupported. Definitions are spelled "$def". The null type isn't listed, so nullable fields use
+// anyOf with {"type": "null"} (unverified). Chat Completions has no json_schema output; the Responses API does.
+const deepseekStrict = (id: string): Capabilities => ({
+  id,
+  provider: "deepseek",
+  keywords: [
+    "type", "properties", "required", "additionalProperties", "items", "enum", "anyOf", "$ref", "description",
+    "pattern", "format", "const", "default", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+  ],
+  rules: { const: (v) => typeof v === "number" },
+  formats: ["email", "hostname", "ipv4", "ipv6", "uuid"],
+  allRequired: true,
+  closedObjects: true,
+  rootObject: true,
+  refs: true,
+  refSiblings: false,
+  recursion: true,
+  typeArrays: false,
+  openSchemas: false,
+  defsKeyword: "$def",
+  limits: {},
+  fields: { tool: "tools[].function.parameters", output: "text.format.schema" },
+});
+
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
-const loose = (id: string, provider: "openai" | "anthropic" | "groq"): Capabilities => ({
+const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek"): Capabilities => ({
   id,
   provider,
   keywords: "any",
@@ -190,7 +218,7 @@ const loose = (id: string, provider: "openai" | "anthropic" | "groq"): Capabilit
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
-const PLANNED = new Set(["bedrock", "mistral", "deepseek", "ollama"]);
+const PLANNED = new Set(["bedrock", "mistral", "ollama"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
 export function resolveTarget(target: string | Capabilities, options: { strict?: boolean } = {}): Capabilities {
@@ -211,6 +239,7 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
     return anthropicStrict(target);
   }
   if (provider === "groq") return strict ? groqStrict(target) : loose(target, "groq");
+  if (provider === "deepseek") return strict ? deepseekStrict(target) : loose(target, "deepseek");
   // xAI has one mode: its schema rules apply with or without `strict`.
   if (provider === "xai" || provider === "grok") return xaiCaps(target);
   // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
@@ -218,11 +247,11 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
   if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
   if (PLANNED.has(provider)) {
     throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq and xAI. ` +
+      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq, xAI and DeepSeek. ` +
         `Until then, pass a capabilities object as the target.`,
     );
   }
   throw new Error(
-    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai" or pass a capabilities object.`,
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek" or pass a capabilities object.`,
   );
 }

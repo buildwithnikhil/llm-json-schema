@@ -508,7 +508,8 @@ export function convert(schema: JSONSchema, options: ConvertOptions): ConvertRes
   if (defNames.length > 0) final = { ...final, $defs: outDefs };
   ctx.final = final;
   measure(final, caps, "#");
-  const sent = caps.upperCaseTypes ? upperCaseTypes(final) : final;
+  let sent = caps.upperCaseTypes ? upperCaseTypes(final) : final;
+  if (caps.defsKeyword && caps.defsKeyword !== "$defs" && sent.$defs) sent = renameDefs(sent, caps.defsKeyword);
 
   if (options.lossless) {
     const first = ctx.losses.find((l) => l.action !== "rewritten");
@@ -667,4 +668,21 @@ export function fullMatchPattern(p: string): string {
   if (start && end) return p;
   const core = p.slice(start ? 1 : 0, end ? -1 : undefined);
   return `${start ? "^" : ".*"}(?:${core})${end ? "$" : ".*"}`;
+}
+
+/** A copy with `$defs` renamed (e.g. to DeepSeek's "$def") and every "#/$defs/" reference rewritten to match. */
+function renameDefs(s: SchemaObject, keyword: string): SchemaObject {
+  const prefix = `#/${keyword}/`;
+  const walk = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(walk);
+    if (!isObj(x)) return x;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(x)) {
+      if (k === "$ref" && typeof v === "string") out.$ref = v.replace(/^#\/\$defs\//, prefix);
+      else if (k === "enum" || k === "const" || k === "default" || k === "examples") out[k] = v;
+      else out[k === "$defs" ? keyword : k] = walk(v);
+    }
+    return out;
+  };
+  return walk(s) as SchemaObject;
 }
