@@ -16,6 +16,8 @@ Every provider accepts a different, stricter subset of JSON Schema, and the rule
 npm install llm-json-schema
 ```
 
+**Docs:** [API reference](docs/api.md) · [Providers](docs/providers.md) · [Guides](docs/guides.md) · [Compatibility](docs/compatibility.md)
+
 ## Usage
 
 ```ts

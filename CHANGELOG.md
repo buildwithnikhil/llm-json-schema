@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1 (2026-11-02)
+
+- **Documentation:** a full `docs/` folder.
+  - [API reference](docs/api.md): every function, option, result field and capability.
+  - [Providers](docs/providers.md): where each target's schema goes in a request.
+  - [Guides](docs/guides.md): Zod, MCP tools, several providers at once, proxies and streaming, error handling.
+- No code changes.
+
 ## 0.8.0 (2026-11-02)
 
 - **Amazon Bedrock target:** `"bedrock"` / `"bedrock/<model id>"` follows Bedrock's structured-output and strict-tool rules (checked 2026-11-02). Objects are closed, enums are primitives only, and `minItems` is 0 or 1. There's no recursion and no bounds, with at most 12 optional and 16 union properties. Nova and Llama model ids need `strict: false`.
