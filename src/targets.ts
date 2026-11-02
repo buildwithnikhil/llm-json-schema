@@ -65,6 +65,57 @@ const anthropicStrict = (id: string): Capabilities => ({
   fields: { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
+// Gemini API, from https://ai.google.dev/api/generate-content (Schema, FunctionDeclaration, GenerationConfig),
+// checked 2026-11-02.
+//
+// JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`): the documented keyword list, with oneOf
+// "interpreted the same as anyOf" (rewritten here), "$ref ... no other properties" and cyclic references only in
+// non-required properties (treated as unsupported until probed).
+const googleJson = (id: string): Capabilities => ({
+  id,
+  provider: "google",
+  keywords: [
+    "type", "format", "title", "description", "enum", "items", "prefixItems", "minItems", "maxItems", "minimum", "maximum",
+    "anyOf", "properties", "additionalProperties", "required", "$ref", "$defs",
+  ],
+  formats: ["date-time", "date", "time"],
+  allRequired: false,
+  closedObjects: false,
+  rootObject: true,
+  refs: true,
+  refSiblings: false,
+  recursion: false,
+  typeArrays: true,
+  openSchemas: false,
+  limits: {},
+  fields: { tool: "tools[].functionDeclarations[].parametersJsonSchema", output: "generationConfig.responseJsonSchema" },
+});
+
+// OpenAPI `Schema` fields (`parameters`, `responseSchema`), which Vertex AI SDKs and older clients build: only the
+// listed fields exist (anything else fails with `Unknown name`), enum is for STRING only, types are upper-case.
+const googleOpenApi = (id: string): Capabilities => ({
+  id,
+  provider: "google",
+  keywords: [
+    "type", "format", "title", "description", "enum", "items", "minItems", "maxItems", "properties", "required",
+    "minProperties", "maxProperties", "minLength", "maxLength", "pattern", "anyOf", "default", "minimum", "maximum",
+  ],
+  rules: { enum: (v) => Array.isArray(v) && v.every((x) => typeof x === "string") },
+  formats: "any",
+  allRequired: false,
+  closedObjects: false,
+  rootObject: true,
+  refs: false,
+  refSiblings: false,
+  recursion: false,
+  typeArrays: false,
+  openSchemas: false,
+  nullableKeyword: true,
+  upperCaseTypes: true,
+  limits: {},
+  fields: { tool: "tools[].functionDeclarations[].parameters", output: "generationConfig.responseSchema" },
+});
+
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
 const loose = (id: string, provider: "openai" | "anthropic"): Capabilities => ({
   id,
@@ -86,7 +137,7 @@ const loose = (id: string, provider: "openai" | "anthropic"): Capabilities => ({
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
-const PLANNED = new Set(["google", "gemini", "vertex", "bedrock", "mistral", "groq", "xai", "deepseek", "ollama"]);
+const PLANNED = new Set(["bedrock", "mistral", "groq", "xai", "deepseek", "ollama"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
 export function resolveTarget(target: string | Capabilities, options: { strict?: boolean } = {}): Capabilities {
@@ -106,11 +157,16 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
     }
     return anthropicStrict(target);
   }
+  // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
+  if (provider === "google" || provider === "gemini") return googleJson(target);
+  if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
   if (PLANNED.has(provider)) {
     throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI and Anthropic. ` +
-        `Gemini is next. Until then, pass a capabilities object as the target.`,
+      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic and Gemini. ` +
+        `Until then, pass a capabilities object as the target.`,
     );
   }
-  throw new Error(`Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic" or pass a capabilities object.`);
+  throw new Error(
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi" or pass a capabilities object.`,
+  );
 }

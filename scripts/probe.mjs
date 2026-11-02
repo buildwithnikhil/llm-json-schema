@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Checks the rules table against the live API.
 //
-//   OPENAI_API_KEY=... ANTHROPIC_API_KEY=... node scripts/probe.mjs [provider/model ...]
-//   (default: openai/gpt-4.1-mini anthropic/claude-haiku-4-5; providers without a key are skipped)
+//   OPENAI_API_KEY=... ANTHROPIC_API_KEY=... GEMINI_API_KEY=... node scripts/probe.mjs [provider/model ...]
+//   (default: openai/gpt-4.1-mini anthropic/claude-haiku-4-5 google/gemini-2.5-flash google-openapi/gemini-2.5-flash;
+//   providers without a key are skipped. A Gemini key is free from Google AI Studio.)
 //
 // Part 1 sends one schema per keyword as a strict tool and records accepted / rejected. Part 2 sends every
 // converted schema from the test corpus, which must all be accepted. Results go to probe-results/<date>.json
@@ -14,12 +15,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { convert, resolveTarget } from "../dist/index.js";
 import { corpus } from "../test/corpus.mjs";
 
-const keys = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY };
-const requested = process.argv.slice(2).length ? process.argv.slice(2) : ["openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5"];
+const gemini = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+const keys = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, google: gemini, "google-openapi": gemini };
+const requested = process.argv.slice(2).length
+  ? process.argv.slice(2)
+  : ["openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5", "google/gemini-2.5-flash", "google-openapi/gemini-2.5-flash"];
 const models = requested.filter((m) => {
   const provider = m.split("/")[0];
   if (!(provider in keys)) throw new Error(`No probe sender for ${provider}`);
-  if (!keys[provider]) console.error(`Skipping ${m}: set ${provider.toUpperCase()}_API_KEY.`);
+  if (!keys[provider]) console.error(`Skipping ${m}: set ${provider.startsWith("google") ? "GEMINI" : provider.toUpperCase()}_API_KEY.`);
   return Boolean(keys[provider]);
 });
 if (models.length === 0) {
@@ -70,6 +74,22 @@ const probes = [
 async function send(target, parameters, strict = true) {
   const [provider, ...rest] = target.split("/");
   const model = rest.join("/");
+  if (provider === "google" || provider === "google-openapi") {
+    const field = provider === "google" ? "parametersJsonSchema" : "parameters";
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": gemini },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "Reply with one word." }] }],
+        tools: [{ functionDeclarations: [{ name: "probe", description: "Probe tool.", [field]: parameters }] }],
+        generationConfig: { maxOutputTokens: 16 },
+      }),
+    });
+    if (res.ok) return { accepted: true };
+    const body = await res.text();
+    if (res.status === 400) return { accepted: false, error: body.slice(0, 300) };
+    throw new Error(`${target}: HTTP ${res.status} ${body.slice(0, 300)}`);
+  }
   const res =
     provider === "openai"
       ? await fetch(`${process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1"}/chat/completions`, {
@@ -108,7 +128,8 @@ for (const model of models) {
     const v = p.schema.properties?.x?.[k];
     return !caps.rules?.[k] || v === undefined || caps.rules[k](v);
   };
-  for (const p of probes) {
+  // The keyword probes are written in JSON Schema; the OpenAPI dialect only runs the converted corpus.
+  for (const p of caps.upperCaseTypes ? [] : probes) {
     let expected = p.expect;
     if (expected === undefined && !p.note) expected = p.formatValue ? allow.has("format") && caps.formats.includes(p.formatValue) : allow.has(p.keyword) && ruleOk(p);
     if (p.minItemsValue !== undefined) expected = allow.has("minItems") && (!caps.rules?.minItems || caps.rules.minItems(p.minItemsValue));
