@@ -68,25 +68,23 @@ const anthropicStrict = (id: string): Capabilities => ({
 // Gemini API, from https://ai.google.dev/api/generate-content (Schema, FunctionDeclaration, GenerationConfig),
 // checked 2026-11-02.
 //
-// JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`): the documented keyword list, with oneOf
-// "interpreted the same as anyOf" (rewritten here), "$ref ... no other properties" and cyclic references only in
-// non-required properties (treated as unsupported until probed).
+// JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`): live probes on 2026-11-02
+// (gemini-3.5-flash-lite) accepted every keyword tried, including const, examples, string/number bounds, oneOf,
+// allOf, not, $ref with siblings, recursion and a root anyOf, so the schema is sent as written.
+// Accepted isn't the same as enforced: check() still validates the output against the original schema.
 const googleJson = (id: string): Capabilities => ({
   id,
   provider: "google",
-  keywords: [
-    "type", "format", "title", "description", "enum", "items", "prefixItems", "minItems", "maxItems", "minimum", "maximum",
-    "anyOf", "properties", "additionalProperties", "required", "$ref", "$defs",
-  ],
-  formats: ["date-time", "date", "time"],
+  keywords: "any",
+  formats: "any",
   allRequired: false,
   closedObjects: false,
-  rootObject: true,
+  rootObject: false,
   refs: true,
-  refSiblings: false,
-  recursion: false,
+  refSiblings: true,
+  recursion: true,
   typeArrays: true,
-  openSchemas: false,
+  openSchemas: true,
   limits: {},
   fields: { tool: "tools[].functionDeclarations[].parametersJsonSchema", output: "generationConfig.responseJsonSchema" },
 });

@@ -3,11 +3,11 @@
 ## 0.2.0 (2026-11-02)
 
 - **Gemini support.**
-  - `"google"` / `"gemini/<model>"` target Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`).
+  - `"google"` / `"gemini/<model>"` target Gemini's JSON Schema fields (`parametersJsonSchema`, `responseJsonSchema`). Live probes accepted every keyword tried, so schemas are sent as written there.
   - `"google-openapi"` / `"vertex"` target the OpenAPI `Schema` fields (`parameters`, `responseSchema`): upper-case types, `nullable`, string-only enums, and no `additionalProperties`.
 - **Fixed:** a wrapped root no longer adds `additionalProperties: false` for targets that don't accept it.
 - **Fixed:** maps are kept as maps for targets that accept `additionalProperties`, instead of being JSON-encoded. `patternProperties` maps still become entries where needed.
-- **Probes:** `scripts/probe.mjs` can test Gemini with a free Google AI Studio key (`GEMINI_API_KEY`).
+- **Probes:** `scripts/probe.mjs` can test Gemini with a free Google AI Studio key (`GEMINI_API_KEY`). It retries busy and rate-limited responses, and its default Gemini model is now `gemini-3.5-flash-lite`.
 - **CI:** builds on Node 24 and tests the built package on Node 18, 20, 22 and 24.
 
 ## 0.1.1 (2026-11-02)

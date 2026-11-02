@@ -23,23 +23,6 @@ function assertGeminiOpenApi(schema) {
   walk(schema, "#", true);
 }
 
-/** Throws unless `schema` uses only the keywords documented for Gemini's JSON Schema fields. */
-function assertGeminiJson(schema) {
-  const caps = resolveTarget("google");
-  const allowed = new Set(caps.keywords);
-  const walk = (s, at) => {
-    for (const k of Object.keys(s)) assert.ok(allowed.has(k), `${at}: keyword "${k}" isn't documented for Gemini`);
-    if (s.$ref) return assert.deepEqual(Object.keys(s), ["$ref"]);
-    if (s.format !== undefined) assert.ok(caps.formats.includes(s.format), `${at}: format ${s.format}`);
-    for (const [k, c] of Object.entries(s.properties ?? {})) walk(c, `${at}/properties/${k}`);
-    if (s.items) walk(s.items, `${at}/items`);
-    if (s.prefixItems) s.prefixItems.forEach((c, i) => walk(c, `${at}/prefixItems/${i}`));
-    if (typeof s.additionalProperties === "object") walk(s.additionalProperties, `${at}/additionalProperties`);
-    if (s.anyOf) s.anyOf.forEach((b, i) => walk(b, `${at}/anyOf/${i}`));
-  };
-  walk(schema, "#");
-}
-
 const recursive = new Set(["recursive tree", "root recursion with #"]);
 for (const [name, schema] of Object.entries(corpus)) {
   for (const use of ["tool", "output"]) {
@@ -47,9 +30,11 @@ for (const [name, schema] of Object.entries(corpus)) {
       if (recursive.has(name)) return assert.throws(() => convert(schema, { target: "google-openapi", use }), /recursive/);
       assertGeminiOpenApi(convert(schema, { target: "google-openapi", use }).schema);
     });
-    test(`google (JSON Schema fields): ${name} (${use})`, () => {
-      if (recursive.has(name)) return assert.throws(() => convert(schema, { target: "gemini/gemini-2.5-flash", use }), /recursive/);
-      assertGeminiJson(convert(schema, { target: "gemini/gemini-2.5-flash", use }).schema);
+    test(`google (JSON Schema fields): ${name} (${use}) is sent as written`, () => {
+      const r = convert(schema, { target: "gemini/gemini-3.5-flash-lite", use });
+      const { $schema, ...expected } = structuredClone(schema);
+      assert.deepEqual(r.schema, expected);
+      assert.deepEqual(r.losses, []);
     });
   }
 }
@@ -98,7 +83,7 @@ test("google-openapi: maps become entries, $ref is inlined, unions keep upper-ca
   assert.deepEqual(r.decode({ tags: [{ key: "a", value: "b" }], v: 1 }), { tags: { a: "b" }, v: 1 });
 });
 
-test("google (JSON Schema fields): keeps maps, tuples and optional fields; rewrites oneOf and $ref siblings", () => {
+test("google (JSON Schema fields): keeps maps, tuples, optional fields and oneOf (probed 2026-11-02)", () => {
   const s = { type: "object", properties: { scores: { type: "object", additionalProperties: { type: "number" } }, at: { type: "array", prefixItems: [{ type: "number" }, { type: "number" }] }, n: { type: ["integer", "null"] } }, required: ["scores"] };
   const r = convert(s, { target: "google" });
   assert.deepEqual(r.schema.properties.scores, s.properties.scores);
@@ -106,15 +91,16 @@ test("google (JSON Schema fields): keeps maps, tuples and optional fields; rewri
   assert.deepEqual(r.schema.required, ["scores"]);
   assert.deepEqual(r.decode({ scores: { a: 1 }, at: [1, 2] }), { scores: { a: 1 }, at: [1, 2] });
   const u = convert({ type: "object", properties: { x: { oneOf: [{ type: "string" }, { type: "number" }] } }, required: ["x"] }, { target: "google" });
-  assert.ok(u.schema.properties.x.anyOf);
-  assert.equal(u.losses[0].action, "relaxed");
+  assert.ok(u.schema.properties.x.oneOf);
+  assert.deepEqual(u.losses, []);
+  assert.equal(u.check({ x: true }).valid, false); // check() still enforces the original
 });
 
 test("Gemini with Zod (zod#5807: anyOf from toJSONSchema)", () => {
   const s = z.object({ id: z.union([z.string(), z.number()]), when: z.iso.datetime().optional(), kind: z.enum(["a", "b"]) });
   for (const target of ["google", "google-openapi"]) {
     const r = convert(fromAny(s), { target });
-    (target === "google" ? assertGeminiJson : assertGeminiOpenApi)(r.schema);
+    if (target === "google-openapi") assertGeminiOpenApi(r.schema);
     assert.equal(s.safeParse(r.decode({ id: 1, kind: "a" })).success, true);
   }
 });
