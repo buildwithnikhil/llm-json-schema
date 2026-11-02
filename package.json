@@ -1,0 +1,82 @@
+{
+  "name": "llm-json-schema",
+  "version": "0.1.0",
+  "description": "Make any JSON Schema work with every LLM provider: per-model rules for OpenAI strict mode, Anthropic and Gemini, a report of what was changed, and a decoder back to your original shape. Zero dependencies.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && npm run test:run",
+    "test:run": "node --test test/convert.test.mjs test/anthropic.test.mjs test/cjs.test.cjs",
+    "probe": "node scripts/probe.mjs",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "keywords": [
+    "llm",
+    "json-schema",
+    "jsonschema",
+    "schema",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "vertex-ai",
+    "structured-outputs",
+    "structured-output",
+    "strict-mode",
+    "function-calling",
+    "tool-calling",
+    "tools",
+    "mcp",
+    "model-context-protocol",
+    "zod",
+    "ai",
+    "agent",
+    "zero-dependency"
+  ],
+  "license": "MIT",
+  "author": "Nikhil",
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsup": "^9.0.0",
+    "typescript": "~5.9",
+    "zod": "^4.6.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buildwithnikhil/llm-json-schema.git"
+  },
+  "bugs": {
+    "url": "https://github.com/buildwithnikhil/llm-json-schema/issues"
+  },
+  "homepage": "https://github.com/buildwithnikhil/llm-json-schema#readme"
+}

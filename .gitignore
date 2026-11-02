@@ -1,0 +1,8 @@
+node_modules
+dist
+*.tgz
+probe-results/
+
+# Private outreach notes: kept local, never pushed
+TARGETS.md
+outreach/
