@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-11-02)
+
+- Add repository, issues and homepage links (github.com/buildwithnikhil/llm-json-schema). No code changes.
+
 ## 0.1.0 (2026-11-02)
 
 First release.

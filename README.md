@@ -71,7 +71,7 @@ If no faithful version of the schema exists for the target, `convert()` throws `
 | Any provider with `strict: false` | Any JSON Schema, with an object at the root of tool parameters. |
 | A capabilities object | Your own rules, for self-hosted or unlisted models. Start from `resolveTarget("openai")` and adjust. |
 
-**How the rules were verified.** In 0.1, the rules come from each provider's documentation (checked 2026-11-02). Where the docs say nothing about a keyword, it's treated as unsupported and rewritten, so the output stays on the safe side. The worst case is a change that wasn't needed, not a rejected request. The test suite checks every converted schema against those documented rules. Live API probes (`npm run probe`) will publish a compatibility table; until then, a converted schema that a provider rejects is a bug, and corrections ship as patch releases.
+**How the rules were verified.** In 0.1, the rules come from each provider's documentation (checked 2026-11-02). Where the docs say nothing about a keyword, it's treated as unsupported and rewritten, so the output stays on the safe side. The worst case is a change that wasn't needed, not a rejected request. The test suite checks every converted schema against those documented rules. Live API probes (`npm run probe`) will publish a compatibility table; until then, a converted schema that a provider rejects is a bug: please [open an issue](https://github.com/buildwithnikhil/llm-json-schema/issues) with the schema and the error, and corrections ship as patch releases.
 
 ## Stability
 
