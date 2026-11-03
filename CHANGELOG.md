@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 (2026-11-02)
+
+- **Amazon Bedrock target:** `"bedrock"` / `"bedrock/<model id>"` follows Bedrock's structured-output and strict-tool rules (checked 2026-11-02). Objects are closed, enums are primitives only, and `minItems` is 0 or 1. There's no recursion and no bounds, with at most 12 optional and 16 union properties. Nova and Llama model ids need `strict: false`.
+- **All planned providers are now supported.** An unknown provider gets a single error listing every target.
+
 ## 0.7.0 (2026-11-02)
 
 - **Ollama target:** `"ollama"` / `"ollama/<model>"`, from Ollama's docs and source (checked 2026-11-02).
