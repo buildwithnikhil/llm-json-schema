@@ -1,4 +1,4 @@
-import type { Capabilities } from "./types.js";
+import type { Capabilities, Use } from "./types.js";
 
 // Rules come from provider docs (dates below); keywords the docs don't list are treated as unsupported until
 // `npm run probe` shows otherwise.
@@ -197,6 +197,58 @@ const deepseekStrict = (id: string): Capabilities => ({
   fields: { tool: "tools[].function.parameters", output: "text.format.schema" },
 });
 
+// Ollama, from https://docs.ollama.com (structured outputs, tool calling, /api/chat) and its source, checked 2026-11-02
+// (github.com/ollama/ollama @ c1db5f9, llama.cpp b11963). There's no strict mode, and tools and `format` differ:
+//
+// Tools: parameters are decoded into Go structs that keep only type, properties, required, items, anyOf, enum and
+// description (plus root $defs); every other keyword is dropped silently before the model sees it. So the rest is moved
+// to the description here, where the model can still read it.
+const ollamaTools = (id: string): Capabilities => ({
+  id,
+  provider: "ollama",
+  keywords: ["type", "properties", "required", "items", "anyOf", "enum", "description"],
+  formats: [],
+  allRequired: false,
+  closedObjects: false,
+  rootObject: true,
+  refs: false,
+  refSiblings: false,
+  recursion: false,
+  typeArrays: true,
+  openSchemas: true,
+  limits: {},
+  fields: { tool: "tools[].function.parameters", output: "format" },
+});
+
+// `format` (structured output): enforced by llama.cpp's schema-to-grammar converter, which "skips unsupported features
+// silently". Per its README: additionalProperties defaults to false, prefixItems and nested $refs are broken, numeric
+// bounds work for integers only, patterns must start with ^ and end with $, formats are date/time/date-time/uuid.
+const ollamaFormat = (id: string): Capabilities => ({
+  id,
+  provider: "ollama",
+  keywords: [
+    "type", "properties", "required", "additionalProperties", "items", "minItems", "maxItems", "enum", "const", "anyOf",
+    "pattern", "format", "minLength", "maxLength", "description",
+  ],
+  rules: {
+    pattern: (v) => typeof v === "string" && v.startsWith("^") && v.endsWith("$"),
+    enum: (v) => Array.isArray(v) && v.length > 0,
+  },
+  formats: ["date", "time", "date-time", "uuid"],
+  allRequired: false,
+  closedObjects: false,
+  closedByDefault: true,
+  patternFullMatch: true,
+  rootObject: false,
+  refs: false,
+  refSiblings: false,
+  recursion: false,
+  typeArrays: true,
+  openSchemas: true,
+  limits: {},
+  fields: { tool: "tools[].function.parameters", output: "format" },
+});
+
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
 const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek" | "mistral"): Capabilities => ({
   id,
@@ -218,10 +270,10 @@ const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
-const PLANNED = new Set(["bedrock", "ollama"]);
+const PLANNED = new Set(["bedrock"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
-export function resolveTarget(target: string | Capabilities, options: { strict?: boolean } = {}): Capabilities {
+export function resolveTarget(target: string | Capabilities, options: { strict?: boolean; use?: Use } = {}): Capabilities {
   if (typeof target === "object" && target !== null) return target;
   if (typeof target !== "string" || target.trim() === "") {
     throw new TypeError(`target must be a "provider/model" string or a capabilities object`);
@@ -244,6 +296,7 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
   // checked 2026-11-02: the docs name the fields (tools[].function.parameters, response_format.json_schema, an optional
   // strict flag) but list no schema rules, so the schema is sent as written with an object root, strict or not.
   if (provider === "mistral") return loose(target, "mistral");
+  if (provider === "ollama") return options.use === "output" ? ollamaFormat(target) : ollamaTools(target);
   // xAI has one mode: its schema rules apply with or without `strict`.
   if (provider === "xai" || provider === "grok") return xaiCaps(target);
   // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
@@ -251,11 +304,11 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
   if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
   if (PLANNED.has(provider)) {
     throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq, xAI, DeepSeek and Mistral. ` +
+      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq, xAI, DeepSeek, Mistral and Ollama. ` +
         `Until then, pass a capabilities object as the target.`,
     );
   }
   throw new Error(
-    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek", "mistral" or pass a capabilities object.`,
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek", "mistral", "ollama" or pass a capabilities object.`,
   );
 }

@@ -73,14 +73,13 @@ function filterKeywords(src: SchemaObject, out: SchemaObject, path: string, ctx:
   for (const [k, v] of Object.entries(src)) {
     if (STRUCTURAL.has(k)) continue;
     let allowed = ctx.allow.has(k);
+    // Whole-string targets get the widened pattern; the target's rules are checked against what will be sent.
+    const sent = k === "pattern" && ctx.caps.patternFullMatch && typeof v === "string" ? fullMatchPattern(v) : v;
     if (allowed && k === "format" && ctx.caps.formats !== "any" && !ctx.caps.formats.includes(String(v))) allowed = false;
-    if (allowed && ctx.caps.rules?.[k] && !ctx.caps.rules[k]!(v)) allowed = false;
+    if (allowed && ctx.caps.rules?.[k] && !ctx.caps.rules[k]!(sent)) allowed = false;
     if (allowed) {
-      if (k === "pattern" && ctx.caps.patternFullMatch && typeof v === "string") {
-        const full = fullMatchPattern(v);
-        if (full !== v) loss(ctx, path, k, v, "rewritten", `${ctx.caps.id} matches patterns against the whole string; widened to ${JSON.stringify(full)} to keep the meaning`);
-        out[k] = full;
-      } else out[k] = v;
+      if (sent !== v) loss(ctx, path, k, v, "rewritten", `${ctx.caps.id} matches patterns against the whole string; widened to ${JSON.stringify(sent)} to keep the meaning`);
+      out[k] = sent;
       continue;
     }
     if (k === "default" || k === "examples") {
@@ -469,7 +468,7 @@ function measure(s: SchemaObject, caps: Capabilities, path: string): void {
 /** Rewrites `schema` into the form `options.target` accepts. */
 export function convert(schema: JSONSchema, options: ConvertOptions): ConvertResult {
   if (!options || options.target === undefined) throw new TypeError("convert(schema, { target }) needs a target, e.g. \"openai\"");
-  const caps = resolveTarget(options.target, { strict: options.strict });
+  const caps = resolveTarget(options.target, { strict: options.strict, use: options.use });
   const use = options.use ?? "tool";
   if (use !== "tool" && use !== "output") throw new TypeError(`use must be "tool" or "output", got ${JSON.stringify(use)}`);
 
@@ -661,13 +660,16 @@ function upperCaseTypes(s: SchemaObject): SchemaObject {
   return walk(s) as SchemaObject;
 }
 
-/** A pattern that matches the whole string means the same as `pattern` does in JSON Schema (match anywhere). */
+/**
+ * An anchored pattern that, matched against the whole string, means what `pattern` means in JSON Schema (match
+ * anywhere). For targets that match whole strings or require ^…$ anchors.
+ */
 export function fullMatchPattern(p: string): string {
   const start = p.startsWith("^");
   const end = p.endsWith("$") && !p.endsWith("\\$");
   if (start && end) return p;
   const core = p.slice(start ? 1 : 0, end ? -1 : undefined);
-  return `${start ? "^" : ".*"}(?:${core})${end ? "$" : ".*"}`;
+  return `^${start ? "" : ".*"}(?:${core})${end ? "" : ".*"}$`;
 }
 
 /** A copy with `$defs` renamed (e.g. to DeepSeek's "$def") and every "#/$defs/" reference rewritten to match. */

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 (2026-11-02)
+
+- **Ollama target:** `"ollama"` / `"ollama/<model>"`, from Ollama's docs and source (checked 2026-11-02).
+  - **Tools:** keywords that Ollama silently drops are moved to the description.
+  - **`use: "output"`:** follows llama.cpp's grammar converter. Patterns are anchored, `prefixItems`, nested `$ref`s and number bounds are avoided, and objects are closed by default.
+- **`resolveTarget(target, { strict, use })`** now takes `use`, for providers whose rules differ between tools and output.
+- **Changed:** patterns widened for whole-string targets are now anchored (`@` → `^.*(?:@).*$` instead of `.*(?:@).*`). Same meaning, and it also satisfies targets that require `^…$`. Target rules are now checked against the widened pattern.
+
 ## 0.6.0 (2026-11-02)
 
 - **Mistral target:** `"mistral"` / `"mistral/<model>"`. Mistral's docs (checked 2026-11-02) list no JSON Schema rules for tools or structured output, so the schema is sent as written, with an object root for tool parameters. Rules will be added if probes or docs show rejections.
