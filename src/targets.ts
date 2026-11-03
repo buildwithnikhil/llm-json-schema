@@ -198,7 +198,7 @@ const deepseekStrict = (id: string): Capabilities => ({
 });
 
 /** Non-strict tools: any JSON Schema, but tool parameters must be an object at the root (no root anyOf/oneOf/allOf). */
-const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek"): Capabilities => ({
+const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek" | "mistral"): Capabilities => ({
   id,
   provider,
   keywords: "any",
@@ -218,7 +218,7 @@ const loose = (id: string, provider: "openai" | "anthropic" | "groq" | "deepseek
       : { tool: "tools[].input_schema", output: "output_config.format.schema" },
 });
 
-const PLANNED = new Set(["bedrock", "mistral", "ollama"]);
+const PLANNED = new Set(["bedrock", "ollama"]);
 
 /** Resolve "provider" or "provider/model" to the capabilities that apply. */
 export function resolveTarget(target: string | Capabilities, options: { strict?: boolean } = {}): Capabilities {
@@ -240,6 +240,10 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
   }
   if (provider === "groq") return strict ? groqStrict(target) : loose(target, "groq");
   if (provider === "deepseek") return strict ? deepseekStrict(target) : loose(target, "deepseek");
+  // Mistral, from https://docs.mistral.ai/studio/conversations/structured-output/custom.md and function-calling.md,
+  // checked 2026-11-02: the docs name the fields (tools[].function.parameters, response_format.json_schema, an optional
+  // strict flag) but list no schema rules, so the schema is sent as written with an object root, strict or not.
+  if (provider === "mistral") return loose(target, "mistral");
   // xAI has one mode: its schema rules apply with or without `strict`.
   if (provider === "xai" || provider === "grok") return xaiCaps(target);
   // Gemini has no separate non-strict mode: its schema fields always validate, so `strict` doesn't change the rules.
@@ -247,11 +251,11 @@ export function resolveTarget(target: string | Capabilities, options: { strict?:
   if (provider === "google-openapi" || provider === "vertex") return googleOpenApi(target);
   if (PLANNED.has(provider)) {
     throw new Error(
-      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq, xAI and DeepSeek. ` +
+      `Target "${target}" isn't supported yet: this release covers OpenAI, Anthropic, Gemini, Groq, xAI, DeepSeek and Mistral. ` +
         `Until then, pass a capabilities object as the target.`,
     );
   }
   throw new Error(
-    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek" or pass a capabilities object.`,
+    `Unknown provider "${provider}" in target "${target}". Use "openai", "anthropic", "google", "google-openapi", "groq", "xai", "deepseek", "mistral" or pass a capabilities object.`,
   );
 }
